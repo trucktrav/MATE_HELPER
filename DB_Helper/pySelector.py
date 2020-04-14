@@ -16,6 +16,8 @@ class Selector(tk.Frame):
         self.frame = tk.Frame(master=self)
         self.frame.pack(side="top", fill="both", expand=True)
         # self.frame.grid_rowconfigure(0, weight=1)
+        # self.frame.grid_rowconfigure(1, weight=1)
+        # self.frame.grid_rowconfigure(2, weight=1)
         # self.frame.grid_columnconfigure(0, weight=1)
         self.name = name
         self.parent = parent
@@ -48,11 +50,12 @@ class Selector(tk.Frame):
         self.lb_to.grid(row=1, column=2, sticky='nsew')
         # self.frame.grid_columnconfigure(2, weight=2)
 
-        r, c = self.frame.grid_size()
+        c, r = self.frame.grid_size()
         for i in range(r):
             self.frame.grid_rowconfigure(i, weight=1)
         for j in range(c):
-            self.frame.grid_columnconfigure(j, weight=1)
+            if j != 1:
+                self.frame.grid_columnconfigure(j, weight=1)
 
     def add_selection(self, method):
         """
@@ -128,11 +131,11 @@ class ListObject(tk.Frame):
         self.xscroll.config(command=self.list.xview)
 
         # now pack everything
-        self.list.grid(row=0, column=0, sticky='nsew')
-        self.list.grid_columnconfigure(0, weight=1)
-        # self.xscroll.pack(side=tk.BOTTOM, fill=tk.X, expand=True)
-        # self.list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        # self.yscroll.pack(side=tk.LEFT, fill=tk.Y, expand=True)
+        # self.list.grid(row=0, column=0, sticky='nsew')
+        # self.list.grid_columnconfigure(0, weight=1)
+        self.xscroll.pack(side=tk.BOTTOM, fill=tk.X, expand=False)
+        self.list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.yscroll.pack(side=tk.LEFT, fill=tk.Y, expand=False)
 
 
 class ListApp(tk.Tk):
@@ -156,17 +159,15 @@ class ListApp(tk.Tk):
             self.lists[name] = Selector(name=name, parent=self.container, controller=self)
             self.lists[name].grid(row=self.names.index(name), column=0, sticky='nsew')
 
-        # self.inter_list =
-        # self.attr_list = Selector("attributes", parent=self.container, controller=self)
-        # self.attr_list.grid(row=1, column=0, sticky='nsew')
-        # self.calc_list = Selector("calcs", parent=self.container, controller=self)
-        # self.calc_list.grid(row=2, column=0, sticky='nsew')
         self.exec = tk.Button(master=self.container, text="Build Data", command=lambda: self.execute())
         self.exec.grid(row=len(self.names), column=0, sticky='nsew')
-        self.container.grid_columnconfigure(0, weight=1)
+        # self.container.grid_columnconfigure(0, weight=1)
+        # self.container.grid_rowconfigure(1, weight=1)
+        # self.container.grid_rowconfigure(2, weight=1)
+        # self.container.grid_rowconfigure(0, weight=1)
+        c, r = self.container.grid_size()
 
-        r, c = self.container.grid_size()
-        for i in range(r):
+        for i in range(r-1):
             self.container.grid_rowconfigure(i, weight=1)
         for j in range(c):
             self.container.grid_columnconfigure(j, weight=1)
