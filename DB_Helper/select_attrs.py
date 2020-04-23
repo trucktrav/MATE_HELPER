@@ -3,7 +3,10 @@ import sqlite3
 from sqlite3 import Error
 import os
 import pandas as pd
-import pySelector
+import sqlalchemy
+from sqlalchemy.orm import sessionmaker
+
+import DB_Helper.pySelector as Selector
 
 
 def get_header():
@@ -16,11 +19,16 @@ def get_header():
 
 
 def main():
+    db = os.path.abspath(os.path.dirname(__file__)) + '\\metrics_database.db'
+    engine = sqlalchemy.create_engine('sqlite:///{0}'.format(db))
+    Session = sessionmaker(bind=engine)
+    session = Session()
     header = get_header()
     h_list = header['header'].tolist()
-    app = pySelector.ListApp()
+    create = {'intermediates': 'selector', 'attributes': 'selector', 'calcs': 'calculator'}
+    app = Selector.ListApp(create_list=create, session=session)
     data = {'intermediates': h_list, 'attributes': h_list, 'calcs': h_list}
-    app.set_data(list_data=data)
+    # app.set_data(list_data=data)
     app.mainloop()
     print('done')
 
