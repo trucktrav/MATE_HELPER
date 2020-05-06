@@ -1,7 +1,35 @@
 import tkinter as tk
-import DB_Helper.py_safe_eval as safe
 import os
 from DB_Helper.py_eval_helper import EvalHelp, HeaderHelp
+import sqlalchemy
+from sqlalchemy import or_
+from sqlalchemy.orm import sessionmaker
+from enum import Enum
+
+
+def eval_call(name: str) -> str:
+    """return the string that is used to evaluate the data call
+
+    Args:
+        name : str
+
+    Returns:
+        str
+    """
+    return "run_data['{0}']".format(name)
+
+
+class MateTypes(Enum):
+    INTERMEDIATE = 1
+    ATTRIBUTE = 2
+    EXPENSE = 3
+    HEADER = 4
+    CALC = 5
+
+
+class ListType(Enum):
+    CALCULATOR = 1
+    SELECTOR = 2
 
 
 class Selector(tk.Frame):
@@ -15,7 +43,7 @@ class Selector(tk.Frame):
 
     """
 
-    def __init__(self, name, l_type, parent, controller, session):
+    def __init__(self, name: MateTypes, l_type: ListType, parent, controller, session):
         tk.Frame.__init__(self, master=parent)
         self.frame = tk.Frame(master=self)
         self.frame.pack(side="top", fill="both", expand=True)
@@ -23,14 +51,9 @@ class Selector(tk.Frame):
         self.parent = parent
         self.controller = controller
         self.session = session
+        self.l_type = l_type
         # load the database information for the lists
-        self.db_from = [item for item in session.query(HeaderHelp)]
-        self.list_from = [item.name for item in self.db_from]
-        self.db_to = [item for item in session.query(EvalHelp).filter_by(type=name)]
-        self.list_to = [item.name for item in self.db_to]
-        # set the display list boxes to the database lists
-        self.var_from = tk.StringVar(value=self.list_from)
-        self.var_to = tk.StringVar(value=self.list_to)
+        self.set_lists()
 
         # create the label
         self.label = tk.Label(master=self.frame, text="{0} Selector".format(name))
@@ -41,10 +64,10 @@ class Selector(tk.Frame):
         self.lb_to = ListObject(name="to_list", parent=self.frame, controller=controller, list_data=self.var_to)
         self.label.grid(row=0, column=0, sticky='nsew')
         # create the buttons
-        if l_type == 'selector':
+        if l_type == ListType.SELECTOR:
             self.buttons = SelectorButtons(parent=self.frame, controller=self)
             self.lb_to.grid(row=1, column=2, sticky='nsew')
-        elif l_type == 'calculator':
+        elif l_type == ListType.CALCULATOR:
             self.lb_from.grid(row=1, column=0, rowspan=2, sticky='nsew')
             self.buttons = SelectorCalculator(parent=self.frame, controller=self)
             self.buttons.grid(row=1, column=2, sticky='nsew')
@@ -62,6 +85,21 @@ class Selector(tk.Frame):
             if j != 1:
                 self.frame.grid_columnconfigure(j, weight=1)
 
+    def set_lists(self):
+        # load the database information for the lists
+        if self.l_type == ListType.SELECTOR:
+            self.db_from = [item for item in
+                            self.session.query(EvalHelp).filter(or_(EvalHelp.type == MateTypes.HEADER.value,
+                                                                    EvalHelp.type == MateTypes.CALC.value))]
+        else:
+            self.db_from = [item for item in self.session.query(HeaderHelp)]
+        self.list_from = [item.name for item in self.db_from]
+        self.db_to = [item for item in self.session.query(EvalHelp).filter_by(type=self.name.value)]
+        self.list_to = [item.name for item in self.db_to]
+        # set the display list boxes to the database lists
+        self.var_from = tk.StringVar(value=self.list_from)
+        self.var_to = tk.StringVar(value=self.list_to)
+
     def add_selection(self, method):
         """
         input: method = 'one' or 'all
@@ -75,9 +113,11 @@ class Selector(tk.Frame):
 
         for i in selection:
             value = self.lb_from.list.get(i)
-            add = EvalHelp(name=value, function=value, display=value, type=self.name)
-            session.add(add)
-            session.commit()
+            selection = session.query(EvalHelp).filter_by(name=value).first()
+            add = EvalHelp(name=selection.name, function=selection.function, header=selection.header,
+                           display=selection.display, type=self.name.value)
+            self.session.add(add)
+            self.session.commit()
             self.list_from.remove(value)
             self.list_to.append(value)
         self.var_from.set(self.list_from)
@@ -91,35 +131,25 @@ class Selector(tk.Frame):
         """
         if method == 'one':
             i = self.lb_to.list.curselection()[0]
-            selection = session.query(EvalHelp).filter_by(name=self.list_to[i])
+            selection = self.session.query(EvalHelp).filter_by(name=self.list_to[i])
             self.list_to.remove(self.list_to[i])
         else:
-            selection = session.query(EvalHelp).filter_by(type=self.name)
+            selection = self.session.query(EvalHelp).filter_by(type=self.name.value)
             self.list_to = []
 
         for i in selection:
-            session.delete(i)
-            self.list_from.append(i.name)
+            self.session.delete(i)
+            # self.list_from.append(i.name)
 
-        session.commit()
+        self.session.commit()
         self.list_from.sort()
         self.var_from.set(self.list_from)
         self.var_to.set(self.list_to)
 
-    def set_list(self, set_list):
-        """
-        input: list to display in the listbox
-        return: nothing
-        Set the from list and clears the to list
-        """
-        self.list_from = set_list
-        self.var_from.set(self.list_from)
-        # self.list_to = []
-        # self.var_to.set(self.list_to)
-
     def to_select(self, param):
         print('to_select')
         i = self.lb_to.list.curselection()[0]
+        session = self.controller.session
         selection = session.query(EvalHelp).filter_by(name=self.list_to[i]).first()
         self.buttons.set_text(selection=selection)
 
@@ -149,6 +179,7 @@ class SelectorCalculator(tk.Frame):
 
     def __init__(self, parent: tk.Frame, controller: Selector):
         tk.Frame.__init__(self, master=parent)
+        self.header = []
         self.controller = controller
         self.btn_clear = tk.Button(master=self, text="Clear", command=self.clear_selection)
         self.btn_use = tk.Button(master=self, text=">", command=self.use_selection)
@@ -198,22 +229,27 @@ class SelectorCalculator(tk.Frame):
         self.text_function.delete(0, tk.END)
         self.text_display.delete(0, tk.END)
         self.text_name.delete(0, tk.END)
+        self.header = []
 
     def use_selection(self, *args):
         print(args)
         selection = self.controller.lb_from.list.curselection()
 
         for i in selection:
-            self.text_function.insert(tk.END, 'run_data[{0}]'.format(self.controller.lb_from.list.get(i)))
+            self.text_function.insert(tk.END, eval_call(self.controller.lb_from.list.get(i)))
+            self.header.append(self.controller.lb_from.list.get(i))
 
     def commit_selection(self):
         display = self.text_display.get()
         function = self.text_function.get()
         name = self.text_name.get()
+        head = ''.join(elem + ',' for elem in self.header)
+        head = head[:-1]
 
         if len(display) == 0 or len(function) == 0 or len(name) == 0:
             return
-        add = EvalHelp(name=name, function=function, display=display, type='calcs')
+        add = EvalHelp(name=name, function=function, header=head, display=display, type=MateTypes.CALC.value)
+        session = self.controller.session
         session.add(add)
         session.commit()
         self.controller.list_to.append(display)
@@ -221,6 +257,7 @@ class SelectorCalculator(tk.Frame):
         self.text_function.delete(0, tk.END)
         self.text_display.delete(0, tk.END)
         self.text_name.delete(0, tk.END)
+        self.header = []
 
     def set_text(self, selection: EvalHelp):
         self.text_function.delete(0, tk.END)
@@ -292,11 +329,12 @@ class ListApp(tk.Tk):
         self.lists = {}
         index = 0
         for name, l_type in self.names.items():
-            self.lists[name] = Selector(name=name, l_type=l_type, parent=self.container, controller=self, session=session)
+            self.lists[name] = Selector(name=name, l_type=l_type, parent=self.container, controller=self,
+                                        session=session)
             self.lists[name].grid(row=index, column=0, sticky='nsew')
             index += 1
 
-        self.exec = tk.Button(master=self.container, text="Build Data", command=lambda: self.execute())
+        self.exec = tk.Button(master=self.container, text="Refresh Data", command=lambda: self.execute())
         self.exec.grid(row=len(self.names), column=0, sticky='nsew')
 
         c, r = self.container.grid_size()
@@ -305,17 +343,9 @@ class ListApp(tk.Tk):
         for j in range(c):
             self.container.grid_columnconfigure(j, weight=1)
 
-    def set_data(self, list_data):
-        """
-        input: dict with three entries, intermediate, attributes, calcs, each entry contains a list to display
-        return: nothing
-        """
-        for name in self.names:
-            self.lists[name].set_list(list_data[name])
-
     def execute(self):
-        print("exec")
-        self.destroy()
+        for item in self.lists.values():
+            item.set_lists()
 
     def on_delete(self):
         """capture tne on delete message from windows to save the data
@@ -332,21 +362,15 @@ class ListApp(tk.Tk):
         self.destroy()
 
 
-import sqlalchemy
-from sqlalchemy.orm import sessionmaker
-
-
 if __name__ == "__main__":
-    create = {'intermediates': 'selector', 'attributes': 'selector', 'calcs': 'calculator'}
+    create = {MateTypes.CALC: ListType.CALCULATOR,
+              MateTypes.INTERMEDIATE: ListType.SELECTOR,
+              MateTypes.ATTRIBUTE: ListType.SELECTOR,
+              MateTypes.EXPENSE: ListType.SELECTOR}
     db = os.path.abspath(os.path.dirname(__file__)) + '\\metrics_database.db'
     engine = sqlalchemy.create_engine('sqlite:///{0}'.format(db))
     Session = sessionmaker(bind=engine)
     session = Session()
     app = ListApp(create_list=create, session=session)
-    data = {}
-    data['intermediates'] = list(map(lambda x: x, range(20)))
-    data['attributes'] = list(map(lambda x: x ** 2, range(20)))
-    data['calcs'] = list(map(lambda x: x ** 3, range(20)))
-    # app.set_data(list_data=data)
     app.mainloop()
     print('done')

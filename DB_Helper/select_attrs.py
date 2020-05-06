@@ -5,7 +5,7 @@ import os
 import pandas as pd
 import sqlalchemy
 from sqlalchemy.orm import sessionmaker
-
+from DB_Helper.pySelector import ListType, MateTypes
 import DB_Helper.pySelector as Selector
 
 
@@ -15,6 +15,7 @@ def get_header():
     database = pwd + '\\metrics_database.db'
     db = sqlite3.connect(database)
     head = pd.read_sql(sql_headers, con=db)
+    db.close()
     return head
 
 
@@ -25,10 +26,11 @@ def main():
     session = Session()
     header = get_header()
     h_list = header['header'].tolist()
-    create = {'intermediates': 'selector', 'attributes': 'selector', 'calcs': 'calculator'}
+    create = {'calcs': ListType.CALCULATOR,
+              'intermediates': ListType.SELECTOR,
+              'attributes': ListType.SELECTOR,
+              'expenses': ListType.SELECTOR}
     app = Selector.ListApp(create_list=create, session=session)
-    data = {'intermediates': h_list, 'attributes': h_list, 'calcs': h_list}
-    # app.set_data(list_data=data)
     app.mainloop()
     print('done')
 

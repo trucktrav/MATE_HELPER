@@ -16,8 +16,9 @@ class EvalHelp(Base):
     id = Column('_id', Integer, primary_key=True)
     name = Column('str_name', String)
     function = Column('str_function', String)
+    header = Column('str_lst_header', String)
     display = Column('str_display', String)
-    type = Column('str_type', String)
+    type = Column('int_type', Integer)
 
 
 class HeaderHelp(Base):
